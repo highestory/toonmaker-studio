@@ -14,7 +14,17 @@ export default function Downloader() {
     const [dayStates, setDayStates] = useState(
         DAYS.reduce((acc, day) => ({
             ...acc,
-            [day.id]: { url: '', images: [], meta: null, loading: false, status: '' }
+            [day.id]: { 
+                url: '', 
+                images: [], 
+                meta: null, 
+                loading: false, 
+                status: '', 
+                analysis: null, 
+                analyzing: false,
+                savingToDrive: false,
+                driveLink: null
+            }
         }), {})
     );
 
@@ -29,7 +39,7 @@ export default function Downloader() {
         const state = dayStates[dayId];
         if (!state.url) return;
 
-        updateDayState(dayId, { loading: true, status: '스캔 중...', images: [], meta: null });
+        updateDayState(dayId, { loading: true, status: '스캔 중...', images: [], meta: null, analysis: null, driveLink: null });
 
         try {
             const res = await fetch('/api/webtoon?url=' + encodeURIComponent(state.url));
@@ -101,6 +111,91 @@ export default function Downloader() {
         }
     };
 
+    const analyzeEpisode = async (dayId) => {
+        const state = dayStates[dayId];
+        if (!state.images.length) return;
+
+        updateDayState(dayId, { analyzing: true, status: 'AI 분석 중... (시간이 걸릴 수 있습니다)' });
+
+        try {
+            const res = await fetch('/api/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    imageUrls: state.images,
+                    referer: state.url
+                })
+            });
+
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+
+            updateDayState(dayId, { 
+                analysis: data.analysis, 
+                analyzing: false,
+                status: '분석 완료!' 
+            });
+        } catch (e) {
+            updateDayState(dayId, { 
+                analyzing: false, 
+                status: '분석 실패: ' + e.message 
+            });
+        }
+    };
+
+    const saveToDrive = async (dayId) => {
+        const state = dayStates[dayId];
+        if (!state.analysis) return;
+
+        updateDayState(dayId, { savingToDrive: true, status: '드라이브 저장 중...' });
+
+        try {
+            const title = state.meta 
+                ? `${state.meta.webtoonTitle} ${state.meta.episodeNo}화 분석` 
+                : `웹툰 분석 ${new Date().toISOString()}`;
+
+            let contentToSave = state.analysis;
+            if (state.images && state.images.length > 0) {
+                contentToSave += '\n\n' + '='.repeat(20) + '\n';
+                contentToSave += '## 🔗 이미지 링크 목록\n';
+                contentToSave += state.images.join('\n');
+            }
+
+            const res = await fetch('/api/save-to-drive', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title,
+                    content: contentToSave
+                })
+            });
+
+            if (res.status === 401) {
+                updateDayState(dayId, { 
+                    savingToDrive: false, 
+                    status: '로그인 필요',
+                    needsLogin: true 
+                });
+                return;
+            }
+
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+
+            updateDayState(dayId, { 
+                savingToDrive: false, 
+                driveLink: data.link,
+                status: '드라이브 저장 완료!',
+                needsLogin: false
+            });
+        } catch (e) {
+            updateDayState(dayId, { 
+                savingToDrive: false, 
+                status: '저장 실패: ' + e.message 
+            });
+        }
+    };
+
     const downloadAllWeekly = async () => {
         for (const day of DAYS) {
             if (dayStates[day.id].images.length > 0) {
@@ -158,18 +253,58 @@ export default function Downloader() {
                                 </div>
                             )}
 
+                            {state.analysis && (
+                                <div className="bg-black/30 rounded p-3 text-xs text-white/80 whitespace-pre-wrap max-h-40 overflow-y-auto border border-white/5">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <strong className="text-indigo-400">✨ AI 분석 결과</strong>
+                                        {state.driveLink ? (
+                                            <a href={state.driveLink} target="_blank" rel="noopener noreferrer" className="text-[10px] text-green-400 hover:underline flex items-center gap-1">
+                                                <span>📄 드라이브에서 보기</span>
+                                            </a>
+                                        ) : state.needsLogin ? (
+                                            <a 
+                                                href="/api/auth/login"
+                                                className="text-[10px] bg-blue-600 hover:bg-blue-500 text-white px-2 py-0.5 rounded transition-colors flex items-center gap-1"
+                                            >
+                                                <span>🔑 구글 로그인</span>
+                                            </a>
+                                        ) : (
+                                            <button 
+                                                onClick={() => saveToDrive(day.id)}
+                                                disabled={state.savingToDrive}
+                                                className="text-[10px] bg-white/10 hover:bg-white/20 px-2 py-0.5 rounded transition-colors"
+                                            >
+                                                {state.savingToDrive ? '저장 중...' : '💾 드라이브 저장'}
+                                            </button>
+                                        )}
+                                    </div>
+                                    {state.analysis}
+                                </div>
+                            )}
+
                             <div className="flex justify-between items-end mt-auto pt-2">
-                                <span className="text-[10px] text-white/40 font-mono truncate max-w-[60%]">
+                                <span className="text-[10px] text-white/40 font-mono truncate max-w-[40%]">
                                     {state.status}
                                 </span>
-                                {state.images.length > 0 && (
-                                    <button
-                                        onClick={() => downloadDay(day.id)}
-                                        className="text-xs bg-white/10 hover:bg-white/20 text-white px-2 py-1 rounded transition-colors"
-                                    >
-                                        다운로드
-                                    </button>
-                                )}
+                                <div className="flex gap-2">
+                                    {state.images.length > 0 && (
+                                        <>
+                                            <button
+                                                onClick={() => analyzeEpisode(day.id)}
+                                                disabled={state.analyzing}
+                                                className="text-xs bg-indigo-600/80 hover:bg-indigo-500 text-white px-2 py-1 rounded transition-colors disabled:opacity-50"
+                                            >
+                                                {state.analyzing ? '분석 중...' : 'AI 분석'}
+                                            </button>
+                                            <button
+                                                onClick={() => downloadDay(day.id)}
+                                                className="text-xs bg-white/10 hover:bg-white/20 text-white px-2 py-1 rounded transition-colors"
+                                            >
+                                                다운로드
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     );

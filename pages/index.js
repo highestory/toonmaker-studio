@@ -21,13 +21,13 @@ export default function Home() {
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Left Column: Checklist (7 cols) */}
-          <div className="lg:col-span-7">
+          {/* Left Column: Checklist (6 cols) */}
+          <div className="lg:col-span-6">
             <Checklist />
           </div>
 
-          {/* Right Column: Downloader (5 cols) */}
-          <div className="lg:col-span-5">
+          {/* Right Column: Downloader (6 cols) */}
+          <div className="lg:col-span-6">
             <div className="sticky top-8">
               <Downloader />
 

@@ -45,3 +45,4 @@ next-env.d.ts
 webtoon_dump.html
 test_image.jpg
 *.log
+service-account.json
