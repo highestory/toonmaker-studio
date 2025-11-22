@@ -1,15 +1,15 @@
 export default async function handler(req, res) {
-    const { url, referer } = req.query;
+    const { url } = req.query;
 
     if (!url) {
-        return res.status(400).send('URL is required');
+        return res.status(400).json({ error: 'URL is required' });
     }
 
     try {
         const response = await fetch(url, {
             headers: {
-                'Referer': referer || 'https://comic.naver.com/',
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://comic.naver.com/'
             }
         });
 
@@ -17,14 +17,14 @@ export default async function handler(req, res) {
             throw new Error(`Failed to fetch image: ${response.status}`);
         }
 
-        const arrayBuffer = await response.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        const buffer = await response.arrayBuffer();
+        const bufferObj = Buffer.from(buffer);
 
         res.setHeader('Content-Type', response.headers.get('content-type') || 'image/jpeg');
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-        res.send(buffer);
+        res.setHeader('Content-Disposition', `attachment; filename="image.jpg"`);
+        res.send(bufferObj);
     } catch (error) {
         console.error('Proxy error:', error);
-        res.status(500).send('Failed to fetch image');
+        res.status(500).json({ error: 'Failed to fetch image' });
     }
 }

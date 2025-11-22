@@ -20,7 +20,9 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'No images provided' });
     }
 
-    if (!process.env.GEMINI_API_KEY) {
+    const apiKey = req.headers['x-gemini-api-key'] || process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
         return res.status(500).json({ error: 'Gemini API key not configured' });
     }
 
@@ -29,7 +31,7 @@ export default async function handler(req, res) {
         // Limit to first 30 images to avoid payload limits/timeouts for now
         // Webtoon episodes can be very long.
         const imagesToAnalyze = imageUrls.slice(0, 30);
-        
+
         const imageParts = await Promise.all(imagesToAnalyze.map(async (url) => {
             const response = await fetch(url, {
                 headers: {
@@ -45,7 +47,7 @@ export default async function handler(req, res) {
 
             const arrayBuffer = await response.arrayBuffer();
             const buffer = Buffer.from(arrayBuffer);
-            
+
             return {
                 inlineData: {
                     data: buffer.toString('base64'),
@@ -62,8 +64,8 @@ export default async function handler(req, res) {
         }
 
         // 2. Call Gemini API
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
         const prompt = `
         이것은 웹툰의 한 회차 이미지들입니다. 순서대로 나열되어 있습니다.
