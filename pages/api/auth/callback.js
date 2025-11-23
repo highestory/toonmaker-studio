@@ -16,12 +16,25 @@ export default async function handler(req, res) {
 
   try {
     const { tokens } = await oauth2Client.getToken(code);
-    
+    oauth2Client.setCredentials(tokens);
+
+    // Verify User Email
+    const oauth2 = google.oauth2({
+      auth: oauth2Client,
+      version: 'v2'
+    });
+
+    const { data: userInfo } = await oauth2.userinfo.get();
+
+    if (userInfo.email !== 'corecore.dev@gmail.com') {
+      return res.status(403).send('Access Denied: Unauthorized Email');
+    }
+
     // Set the token in a cookie
     // In a production app, you should encrypt this or use a session ID
     // For this personal tool, we'll store the access token directly (it expires in 1h)
     // Ideally we'd also store the refresh token to get new access tokens
-    
+
     const cookieValue = JSON.stringify(tokens);
 
     res.setHeader('Set-Cookie', serialize('google_auth_token', cookieValue, {
@@ -32,7 +45,7 @@ export default async function handler(req, res) {
       sameSite: 'lax',
     }));
 
-    res.redirect('/');
+    res.redirect('/dashboard');
   } catch (error) {
     console.error('Auth error:', error);
     res.status(500).send('Authentication failed');

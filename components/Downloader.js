@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 
 const DAYS = [
     { id: 'mon', label: '월요일' },
@@ -14,13 +16,13 @@ export default function Downloader() {
     const [dayStates, setDayStates] = useState(
         DAYS.reduce((acc, day) => ({
             ...acc,
-            [day.id]: { 
-                url: '', 
-                images: [], 
-                meta: null, 
-                loading: false, 
-                status: '', 
-                analysis: null, 
+            [day.id]: {
+                url: '',
+                images: [],
+                meta: null,
+                loading: false,
+                status: '',
+                analysis: null,
                 analyzing: false,
                 savingToDrive: false,
                 driveLink: null
@@ -58,25 +60,6 @@ export default function Downloader() {
         }
     };
 
-    const downloadImage = async (imgUrl, index, folderName, customFilename, referer) => {
-        const filename = customFilename || `webtoon_image_${String(index + 1).padStart(3, '0')}.jpg`;
-        const res = await fetch('/api/save-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                imageUrl: imgUrl,
-                referer,
-                filename,
-                folderName
-            })
-        });
-        if (!res.ok) {
-            const data = await res.json();
-            throw new Error(data.error || '저장 실패');
-        }
-        return res.json();
-    };
-
     const downloadDay = async (dayId) => {
         const state = dayStates[dayId];
         if (!state.images.length) return;
@@ -90,23 +73,59 @@ export default function Downloader() {
         }
         folderName = folderName.replace(/[/\\?%*:|"<>]/g, '-');
 
-        updateDayState(dayId, { status: '다운로드 중...' });
-        let successCount = 0;
+        updateDayState(dayId, { status: '다운로드 준비 중...' });
 
         try {
+            const zip = new JSZip();
+            const folder = zip.folder(folderName);
+            let successCount = 0;
+
             // Download Thumbnail
             if (state.meta && state.meta.thumbnail) {
-                await downloadImage(state.meta.thumbnail, -1, folderName, 'thumbnail.jpg', state.url);
+                try {
+                    const thumbRes = await fetch(`/api/proxy-image?url=${encodeURIComponent(state.meta.thumbnail)}`);
+                    if (thumbRes.ok) {
+                        const thumbBlob = await thumbRes.blob();
+                        folder.file('thumbnail.jpg', thumbBlob);
+                    }
+                } catch (e) {
+                    console.error('Thumbnail download failed', e);
+                }
             }
 
-            for (let i = 0; i < state.images.length; i++) {
-                await downloadImage(state.images[i], i, folderName, null, state.url);
-                successCount++;
-                if (i % 5 === 0) updateDayState(dayId, { status: `${i + 1}/${state.images.length} 저장 중...` });
-                await new Promise(r => setTimeout(r, 100));
+            // Download Images
+            const totalImages = state.images.length;
+            for (let i = 0; i < totalImages; i++) {
+                const imgUrl = state.images[i];
+                const filename = `webtoon_image_${String(i + 1).padStart(3, '0')}.jpg`;
+
+                updateDayState(dayId, { status: `${i + 1}/${totalImages} 이미지 가져오는 중...` });
+
+                try {
+                    // Use proxy to bypass CORS
+                    const res = await fetch(`/api/proxy-image?url=${encodeURIComponent(imgUrl)}`);
+                    if (!res.ok) throw new Error('Fetch failed');
+
+                    const blob = await res.blob();
+                    folder.file(filename, blob);
+                    successCount++;
+                } catch (e) {
+                    console.error(`Failed to download image ${i}`, e);
+                }
+
+                // Add a small delay to prevent overwhelming the server/proxy
+                await new Promise(r => setTimeout(r, 50));
             }
+
+            updateDayState(dayId, { status: 'ZIP 파일 생성 중...' });
+            const content = await zip.generateAsync({ type: 'blob' });
+
+            saveAs(content, `${folderName}.zip`);
+
             updateDayState(dayId, { status: `완료! (${successCount}장)` });
+
         } catch (e) {
+            console.error('Download error:', e);
             updateDayState(dayId, { status: `오류: ${e.message}` });
         }
     };
@@ -130,15 +149,15 @@ export default function Downloader() {
             const data = await res.json();
             if (data.error) throw new Error(data.error);
 
-            updateDayState(dayId, { 
-                analysis: data.analysis, 
+            updateDayState(dayId, {
+                analysis: data.analysis,
                 analyzing: false,
-                status: '분석 완료!' 
+                status: '분석 완료!'
             });
         } catch (e) {
-            updateDayState(dayId, { 
-                analyzing: false, 
-                status: '분석 실패: ' + e.message 
+            updateDayState(dayId, {
+                analyzing: false,
+                status: '분석 실패: ' + e.message
             });
         }
     };
@@ -150,8 +169,8 @@ export default function Downloader() {
         updateDayState(dayId, { savingToDrive: true, status: '드라이브 저장 중...' });
 
         try {
-            const title = state.meta 
-                ? `${state.meta.webtoonTitle} ${state.meta.episodeNo}화 분석` 
+            const title = state.meta
+                ? `${state.meta.webtoonTitle} ${state.meta.episodeNo}화 분석`
                 : `웹툰 분석 ${new Date().toISOString()}`;
 
             let contentToSave = state.analysis;
@@ -171,10 +190,10 @@ export default function Downloader() {
             });
 
             if (res.status === 401) {
-                updateDayState(dayId, { 
-                    savingToDrive: false, 
+                updateDayState(dayId, {
+                    savingToDrive: false,
                     status: '로그인 필요',
-                    needsLogin: true 
+                    needsLogin: true
                 });
                 return;
             }
@@ -182,16 +201,16 @@ export default function Downloader() {
             const data = await res.json();
             if (data.error) throw new Error(data.error);
 
-            updateDayState(dayId, { 
-                savingToDrive: false, 
+            updateDayState(dayId, {
+                savingToDrive: false,
                 driveLink: data.link,
                 status: '드라이브 저장 완료!',
                 needsLogin: false
             });
         } catch (e) {
-            updateDayState(dayId, { 
-                savingToDrive: false, 
-                status: '저장 실패: ' + e.message 
+            updateDayState(dayId, {
+                savingToDrive: false,
+                status: '저장 실패: ' + e.message
             });
         }
     };
@@ -262,14 +281,14 @@ export default function Downloader() {
                                                 <span>📄 드라이브에서 보기</span>
                                             </a>
                                         ) : state.needsLogin ? (
-                                            <a 
+                                            <a
                                                 href="/api/auth/login"
                                                 className="text-[10px] bg-blue-600 hover:bg-blue-500 text-white px-2 py-0.5 rounded transition-colors flex items-center gap-1"
                                             >
                                                 <span>🔑 구글 로그인</span>
                                             </a>
                                         ) : (
-                                            <button 
+                                            <button
                                                 onClick={() => saveToDrive(day.id)}
                                                 disabled={state.savingToDrive}
                                                 className="text-[10px] bg-white/10 hover:bg-white/20 px-2 py-0.5 rounded transition-colors"

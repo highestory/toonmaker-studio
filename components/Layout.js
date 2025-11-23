@@ -10,7 +10,8 @@ import {
     Download,
     CheckCircle2,
     AlertCircle,
-    Loader2
+    Loader2,
+    LogOut
 } from 'lucide-react';
 
 export default function Layout({ children }) {
@@ -18,8 +19,13 @@ export default function Layout({ children }) {
     const [apiStatus, setApiStatus] = useState('Connected'); // Mock status
     const [progress, setProgress] = useState(0); // Mock progress
 
+    // If on landing page, render simplified layout
+    if (router.pathname === '/') {
+        return <>{children}</>;
+    }
+
     const navItems = [
-        { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+        { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
         { icon: FolderOpen, label: 'Projects', path: '/projects' },
         { icon: Settings, label: 'Settings', path: '/settings' },
     ];
@@ -45,8 +51,8 @@ export default function Layout({ children }) {
                                 key={item.path}
                                 href={item.path}
                                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive
-                                        ? 'bg-blue-600/10 text-blue-400'
-                                        : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                                    ? 'bg-blue-600/10 text-blue-400'
+                                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
                                     }`}
                             >
                                 <item.icon size={18} />
@@ -62,6 +68,13 @@ export default function Layout({ children }) {
                         <HelpCircle size={18} />
                         Help & Resources
                     </button>
+                    <a
+                        href="/api/auth/logout"
+                        className="flex items-center gap-3 px-3 py-2 text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-colors w-full rounded-lg"
+                    >
+                        <LogOut size={18} />
+                        Log Out
+                    </a>
                 </div>
             </aside>
 

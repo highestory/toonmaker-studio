@@ -5,6 +5,7 @@ import { ArrowLeft, Plus, ListChecks } from 'lucide-react';
 import EpisodeCard from '@/components/EpisodeCard';
 import Workstation from '@/components/Workstation';
 import WeeklyChecklist from '@/components/WeeklyChecklist';
+import TuesdayRoutine from '@/components/TuesdayRoutine';
 
 const DAYS = [
     { id: 'mon', label: 'MON' },
@@ -22,6 +23,7 @@ export default function ProjectDetail() {
     const [projectTitle, setProjectTitle] = useState('Loading...');
     const [checklistData, setChecklistData] = useState([]);
     const [showChecklist, setShowChecklist] = useState(false);
+    const [showTuesdayRoutine, setShowTuesdayRoutine] = useState(false);
 
     const [weekData, setWeekData] = useState({
         mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: []
@@ -162,6 +164,13 @@ export default function ProjectDetail() {
                     <ListChecks size={16} />
                     {showChecklist ? 'Hide Checklist' : 'Show Checklist'}
                 </button>
+                <button
+                    onClick={() => setShowTuesdayRoutine(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-orange-600/20 hover:bg-orange-600/30 text-orange-500 border border-orange-500/50 rounded-lg text-sm font-bold transition-colors ml-2"
+                >
+                    <span className="mr-1">🔥</span>
+                    Start Tuesday Routine
+                </button>
             </div>
 
             {/* Checklist Panel */}
@@ -200,6 +209,15 @@ export default function ProjectDetail() {
                 initialData={activeEpisodeId ? weekData[activeDayId].find(e => e.id === activeEpisodeId) : null}
                 onSave={handleSaveWork}
             />
+            {/* Tuesday Routine Modal */}
+            {showTuesdayRoutine && (
+                <TuesdayRoutine
+                    projectId={projectId}
+                    checklistData={checklistData}
+                    onUpdate={handleChecklistUpdate}
+                    onClose={() => setShowTuesdayRoutine(false)}
+                />
+            )}
         </div>
     );
 }

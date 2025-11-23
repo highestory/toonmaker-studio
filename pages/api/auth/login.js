@@ -9,6 +9,7 @@ export default function handler(req, res) {
 
   const scopes = [
     'https://www.googleapis.com/auth/drive.file',
+    'https://www.googleapis.com/auth/userinfo.email',
   ];
 
   const url = oauth2Client.generateAuthUrl({
