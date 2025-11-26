@@ -15,8 +15,8 @@ export default function LandingPage() {
     }, [router]);
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-[#0f1014] text-white p-6">
-            <div className="max-w-md w-full bg-[#1a1b26] border border-white/5 rounded-2xl p-8 shadow-2xl text-center">
+        <div className="flex flex-col items-center justify-center min-h-screen bg-[#0f1014] text-white p-4 md:p-6">
+            <div className="max-w-md w-full bg-[#1a1b26] border border-white/5 rounded-2xl p-6 md:p-8 shadow-2xl text-center">
                 <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-500/20">
                     <span className="text-2xl font-bold italic">TJ</span>
                 </div>

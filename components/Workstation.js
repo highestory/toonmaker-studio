@@ -130,14 +130,15 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-            <div className="bg-[#1a1b26] w-full max-w-[1600px] h-[90vh] rounded-2xl border border-white/10 flex flex-col shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-0 md:p-6">
+            <div className="bg-[#1a1b26] w-full max-w-[1600px] h-full md:h-[90vh] rounded-none md:rounded-2xl border-0 md:border border-white/10 flex flex-col shadow-2xl overflow-hidden">
                 {/* Header */}
-                <div className="h-14 border-b border-white/10 flex justify-between items-center px-6 bg-[#13141c]">
+                <div className="h-14 border-b border-white/10 flex justify-between items-center px-4 md:px-6 bg-[#13141c] shrink-0">
                     <h2 className="font-bold text-lg flex items-center gap-2">
-                        <span className="text-blue-400">{day?.label}</span>
+                        <span className="text-blue-400 truncate max-w-[100px] md:max-w-none">{day?.label}</span>
                         <span className="text-gray-500">|</span>
-                        <span>Webtoon Video Creator</span>
+                        <span className="hidden md:inline">Webtoon Video Creator</span>
+                        <span className="md:hidden">Creator</span>
                     </h2>
                     <div className="flex items-center gap-3">
                         <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
@@ -147,10 +148,10 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
                 </div>
 
                 {/* 3-Column Layout */}
-                <div className="flex-1 grid grid-cols-3 divide-x divide-white/10 min-h-0">
+                <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-white/10 min-h-0 overflow-y-auto lg:overflow-hidden">
 
                     {/* Column 1: Source & Vision */}
-                    <div className="flex flex-col p-4 gap-4 min-h-0">
+                    <div className="flex flex-col p-4 gap-4 min-h-[500px] lg:min-h-0">
                         <h3 className="font-bold text-gray-400 text-sm uppercase tracking-wider">Source & Gemini Vision</h3>
 
                         {meta.thumbnail && (
@@ -213,7 +214,7 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
                     </div>
 
                     {/* Column 2: Script Editor */}
-                    <div className="flex flex-col p-4 gap-4 min-h-0">
+                    <div className="flex flex-col p-4 gap-4 min-h-[500px] lg:min-h-0">
                         <h3 className="font-bold text-gray-400 text-sm uppercase tracking-wider">Script Editor</h3>
 
                         <textarea
@@ -225,7 +226,7 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
                     </div>
 
                     {/* Column 3: Selected Assets */}
-                    <div className="flex flex-col p-4 gap-4 min-h-0">
+                    <div className="flex flex-col p-4 gap-4 min-h-[500px] lg:min-h-0">
                         <div className="flex justify-between items-center">
                             <h3 className="font-bold text-gray-400 text-sm uppercase tracking-wider">Selected Images ({selectedImages.length})</h3>
                             <button

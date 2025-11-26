@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '@/lib/supabase';
-import { Plus, Calendar, CheckCircle2, Clock, Image } from 'lucide-react';
+import { Plus, Calendar, CheckCircle2, Clock, Image, Loader2 } from 'lucide-react';
 
 export default function Dashboard() {
   const router = useRouter();
   const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchProjects();
@@ -47,6 +48,7 @@ export default function Dashboard() {
 
       setProjects(projectsWithProgress);
     }
+    setLoading(false);
   }
 
   const handleCreateProject = async () => {
@@ -74,14 +76,14 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col h-full gap-6">
       {/* Header */}
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 md:gap-0">
         <div>
           <h2 className="text-2xl font-bold text-white mb-1">Projects</h2>
           <p className="text-sm text-gray-500">Manage your webtoon video projects</p>
         </div>
         <button
           onClick={handleCreateProject}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold transition-colors shadow-lg shadow-blue-900/20"
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold transition-colors shadow-lg shadow-blue-900/20 w-full md:w-auto justify-center"
         >
           <Plus size={16} />
           New Project
@@ -162,8 +164,16 @@ export default function Dashboard() {
           </div>
         ))}
 
+        {/* Loading State */}
+        {loading && (
+          <div className="col-span-full flex flex-col items-center justify-center py-20">
+            <Loader2 size={48} className="text-blue-500 animate-spin mb-4" />
+            <p className="text-gray-400">Loading projects...</p>
+          </div>
+        )}
+
         {/* Empty State */}
-        {projects.length === 0 && (
+        {!loading && projects.length === 0 && (
           <div className="col-span-full flex flex-col items-center justify-center py-20 border-2 border-dashed border-white/10 rounded-xl">
             <Plus size={48} className="text-gray-600 mb-4" />
             <h3 className="text-lg font-bold text-gray-400 mb-2">No Projects Yet</h3>

@@ -6,6 +6,7 @@ import EpisodeCard from '@/components/EpisodeCard';
 import Workstation from '@/components/Workstation';
 import WeeklyChecklist from '@/components/WeeklyChecklist';
 import TuesdayRoutine from '@/components/TuesdayRoutine';
+import { DEFAULT_CHECKLIST } from '@/lib/constants';
 
 const DAYS = [
     { id: 'mon', label: 'MON' },
@@ -22,6 +23,12 @@ export default function ProjectDetail() {
     const { projectId } = router.query;
     const [projectTitle, setProjectTitle] = useState('Loading...');
     const [checklistData, setChecklistData] = useState([]);
+    const [scriptData, setScriptData] = useState({
+        opening: '',
+        bridge: '',
+        closing: ''
+    });
+    const [polishing, setPolishing] = useState(null);
     const [showChecklist, setShowChecklist] = useState(false);
     const [showTuesdayRoutine, setShowTuesdayRoutine] = useState(false);
 
@@ -38,38 +45,71 @@ export default function ProjectDetail() {
     }, [projectId]);
 
     async function fetchProjectData() {
-        const { data: project } = await supabase.from('projects').select('title, checklist_data, ai_special_episode_id').eq('id', projectId).single();
+        if (!projectId) return;
+
+        // Fetch project details (title, script_data, checklist_data, ai_special_episode_id)
+        const { data: project, error: projectError } = await supabase
+            .from('projects')
+            .select('title, checklist_data, ai_special_episode_id, script_data')
+            .eq('id', projectId)
+            .single();
+
+        if (projectError) {
+            console.error('Error fetching project data:', projectError);
+            return;
+        }
+
         if (project) {
             setProjectTitle(project.title);
             setAiSpecialId(project.ai_special_episode_id);
-            if (project.checklist_data) {
+            if (Array.isArray(project.checklist_data)) {
                 setChecklistData(project.checklist_data);
+            }
+            if (project.script_data) {
+                setScriptData(prev => ({ ...prev, ...project.script_data }));
             }
         }
 
-        const { data: episodes } = await supabase.from('episodes').select('*').eq('project_id', projectId).order('created_at', { ascending: true });
+        const { data: episodes, error: episodesError } = await supabase.from('episodes').select('*').eq('project_id', projectId).order('created_at', { ascending: true });
+        
+        if (episodesError) {
+            console.error('Error fetching episodes:', episodesError);
+            return;
+        }
+
         const newWeekData = { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
         const featured = [];
 
         if (episodes) {
             episodes.forEach(ep => {
-                if (newWeekData[ep.title]) {
+                // Use ep.title as the day ID (legacy schema)
+                const dayId = ep.title;
+                
+                if (dayId && newWeekData[dayId]) {
                     try {
-                        const content = JSON.parse(ep.script_content);
-                        const episodeData = { ...content, id: ep.id, is_featured: ep.is_featured };
-                        newWeekData[ep.title].push(episodeData);
+                        const content = JSON.parse(ep.script_content || '{}');
+                        const episodeData = { 
+                            ...content, 
+                            id: ep.id, 
+                            is_featured: ep.is_featured, 
+                            day: dayId,
+                            script_content: ep.script_content // Preserve raw script content
+                        };
+                        newWeekData[dayId].push(episodeData);
 
                         // Collect featured episodes
                         if (ep.is_featured) {
                             featured.push({
                                 id: ep.id,
-                                day: ep.title,
+                                day: dayId,
                                 title: content.meta?.webtoonTitle || content.meta?.title || 'Untitled'
                             });
                         }
                     } catch (e) {
-                        console.error('Error parsing script content', e);
+                        console.error(`Error parsing script content for episode ${ep.id}:`, e);
                     }
+                } else {
+                    console.warn(`Episode ${ep.id} has invalid or missing day ID in title: ${dayId}`);
                 }
             });
         }
@@ -110,7 +150,7 @@ export default function ProjectDetail() {
             // Create new
             await supabase.from('episodes').insert({
                 project_id: projectId,
-                title: activeDayId,
+                title: activeDayId, // Use 'title' column for day ID
                 script_content: JSON.stringify(content)
             });
         }
@@ -120,14 +160,136 @@ export default function ProjectDetail() {
 
     const handleChecklistUpdate = async (updatedChecklist) => {
         setChecklistData(updatedChecklist);
-
-        // Save to DB
-        await supabase
+        
+        // Save to Supabase
+        const { error } = await supabase
             .from('projects')
             .update({ checklist_data: updatedChecklist })
             .eq('id', projectId);
+
+        if (error) {
+            console.error('Error saving checklist:', error);
+        }
     };
 
+    const handleChecklistToggle = (itemId) => {
+        const currentList = Array.isArray(checklistData) && checklistData.length > 0 ? checklistData : DEFAULT_CHECKLIST;
+        const updatedList = currentList.map(item => 
+            item.id === itemId ? { ...item, checked: !item.checked } : item
+        );
+        handleChecklistUpdate(updatedList);
+    };
+
+    const handleProjectScriptUpdate = (field, value) => {
+        const newScriptData = { ...scriptData, [field]: value };
+        setScriptData(newScriptData);
+        // Local update only
+    };
+
+    const handleEpisodeScriptUpdate = (episodeId, value) => {
+        // Optimistic update (Local only)
+        const newWeekData = { ...weekData };
+        let found = false;
+        
+        for (const dayId in newWeekData) {
+            const eps = newWeekData[dayId];
+            const epIndex = eps.findIndex(e => e.id === episodeId);
+            if (epIndex >= 0) {
+                const ep = eps[epIndex];
+                let content = {};
+                try {
+                    content = JSON.parse(ep.script_content || '{}');
+                } catch {}
+                
+                content.prompt = value; 
+                
+                newWeekData[dayId][epIndex] = {
+                    ...ep,
+                    script_content: JSON.stringify(content)
+                };
+                found = true;
+                break;
+            }
+        }
+        
+        if (found) setWeekData(newWeekData);
+    };
+
+    const handleSaveScripts = async () => {
+        if (!projectId) return;
+
+        // 1. Save Project Level Scripts
+        const { error: projectError } = await supabase
+            .from('projects')
+            .update({
+                script_data: scriptData
+            })
+            .eq('id', projectId);
+
+        if (projectError) {
+            console.error('Error saving project scripts:', projectError);
+            alert('Failed to save project scripts');
+            return;
+        }
+
+        // 2. Save Episode Scripts
+        // We need to iterate through all episodes in weekData and update them.
+        // To be efficient, we could only update changed ones, but tracking changes is complex.
+        // For now, let's update all episodes that have content.
+        // Or better, we can just update the ones in the current view if we passed a dayId?
+        // But the user might have edited multiple days.
+        // Let's iterate all days.
+        
+        const updates = [];
+        Object.values(weekData).flat().forEach(ep => {
+            updates.push({
+                id: ep.id,
+                script_content: ep.script_content
+            });
+        });
+
+        if (updates.length > 0) {
+            const { error: episodesError } = await supabase
+                .from('episodes')
+                .upsert(updates, { onConflict: 'id' }); // upsert is good for batch updates if ID matches
+
+            if (episodesError) {
+                console.error('Error saving episode scripts:', episodesError);
+                alert('Failed to save episode scripts');
+            } else {
+                alert('All scripts saved successfully!');
+            }
+        } else {
+            alert('Scripts saved successfully!');
+        }
+    };
+
+    const polishScript = async (type, text, context = null, episodeId = null) => {
+        if (!text) return;
+
+        setPolishing(episodeId || type);
+        try {
+            const res = await fetch('/api/polish-script', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, type, context })
+            });
+            const data = await res.json();
+
+            if (data.polishedText) {
+                if (episodeId) {
+                    handleEpisodeScriptUpdate(episodeId, data.polishedText);
+                } else {
+                    handleProjectScriptUpdate(type, data.polishedText);
+                }
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Failed to polish script');
+        }
+        setPolishing(null);
+    };
+    
     const handleAiSpecialChange = async (episodeId) => {
         setAiSpecialId(episodeId);
 
@@ -144,7 +306,7 @@ export default function ProjectDetail() {
             <div className="flex justify-between items-end">
                 <div className="flex items-center gap-4">
                     <button
-                        onClick={() => router.push('/')}
+                        onClick={() => router.push('/dashboard')}
                         className="p-2 hover:bg-white/10 rounded-lg transition-colors"
                     >
                         <ArrowLeft size={20} />
@@ -188,7 +350,7 @@ export default function ProjectDetail() {
             )}
 
             {/* Kanban Grid */}
-            <div className="grid grid-cols-4 xl:grid-cols-7 gap-4 flex-1 min-h-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4 flex-1 min-h-0">
                 {DAYS.map((day) => (
                     <div key={day.id} className="min-h-[300px]">
                         <EpisodeCard
@@ -196,6 +358,17 @@ export default function ProjectDetail() {
                             data={weekData[day.id]}
                             onEdit={handleEdit}
                             onFeaturedChange={fetchProjectData}
+                            checklistItems={Array.isArray(checklistData) && checklistData.length > 0
+                                ? checklistData.filter(item => item.id.startsWith(`${day.id}-`))
+                                : DEFAULT_CHECKLIST.filter(item => item.id.startsWith(`${day.id}-`))
+                            }
+                            onToggleCheck={handleChecklistToggle}
+                            scriptData={scriptData}
+                            onProjectScriptUpdate={handleProjectScriptUpdate}
+                            onEpisodeScriptUpdate={handleEpisodeScriptUpdate}
+                            onPolish={polishScript}
+                            isPolishing={polishing}
+                            onSave={handleSaveScripts}
                         />
                     </div>
                 ))}
