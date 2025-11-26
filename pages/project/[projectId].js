@@ -70,7 +70,7 @@ export default function ProjectDetail() {
         }
 
         const { data: episodes, error: episodesError } = await supabase.from('episodes').select('*').eq('project_id', projectId).order('created_at', { ascending: true });
-        
+
         if (episodesError) {
             console.error('Error fetching episodes:', episodesError);
             return;
@@ -83,14 +83,14 @@ export default function ProjectDetail() {
             episodes.forEach(ep => {
                 // Use ep.title as the day ID (legacy schema)
                 const dayId = ep.title;
-                
+
                 if (dayId && newWeekData[dayId]) {
                     try {
                         const content = JSON.parse(ep.script_content || '{}');
-                        const episodeData = { 
-                            ...content, 
-                            id: ep.id, 
-                            is_featured: ep.is_featured, 
+                        const episodeData = {
+                            ...content,
+                            id: ep.id,
+                            is_featured: ep.is_featured,
                             day: dayId,
                             script_content: ep.script_content // Preserve raw script content
                         };
@@ -136,6 +136,8 @@ export default function ProjectDetail() {
             ...data,
             meta: data.meta || {}
         };
+        console.log('Saving content:', content);
+        console.log('Storyboard data:', data.storyboard);
 
         setIsWorkstationOpen(false);
 
@@ -159,7 +161,7 @@ export default function ProjectDetail() {
 
     const handleChecklistUpdate = async (updatedChecklist) => {
         setChecklistData(updatedChecklist);
-        
+
         // Save to Supabase
         const { error } = await supabase
             .from('projects')
@@ -173,7 +175,7 @@ export default function ProjectDetail() {
 
     const handleChecklistToggle = (itemId) => {
         const currentList = Array.isArray(checklistData) && checklistData.length > 0 ? checklistData : DEFAULT_CHECKLIST;
-        const updatedList = currentList.map(item => 
+        const updatedList = currentList.map(item =>
             item.id === itemId ? { ...item, checked: !item.checked } : item
         );
         handleChecklistUpdate(updatedList);
@@ -189,7 +191,7 @@ export default function ProjectDetail() {
         // Optimistic update (Local only)
         const newWeekData = { ...weekData };
         let found = false;
-        
+
         for (const dayId in newWeekData) {
             const eps = newWeekData[dayId];
             const epIndex = eps.findIndex(e => e.id === episodeId);
@@ -198,10 +200,10 @@ export default function ProjectDetail() {
                 let content = {};
                 try {
                     content = JSON.parse(ep.script_content || '{}');
-                } catch {}
-                
-                content.prompt = value; 
-                
+                } catch { }
+
+                content.prompt = value;
+
                 newWeekData[dayId][epIndex] = {
                     ...ep,
                     script_content: JSON.stringify(content)
@@ -210,7 +212,7 @@ export default function ProjectDetail() {
                 break;
             }
         }
-        
+
         if (found) setWeekData(newWeekData);
     };
 
@@ -238,7 +240,7 @@ export default function ProjectDetail() {
         // Or better, we can just update the ones in the current view if we passed a dayId?
         // But the user might have edited multiple days.
         // Let's iterate all days.
-        
+
         const updates = [];
         Object.values(weekData).flat().forEach(ep => {
             updates.push({
@@ -288,7 +290,7 @@ export default function ProjectDetail() {
         }
         setPolishing(null);
     };
-    
+
     const handleAiSpecialChange = async (episodeId) => {
         setAiSpecialId(episodeId);
 
