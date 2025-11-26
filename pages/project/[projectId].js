@@ -5,17 +5,17 @@ import { ArrowLeft, Plus, ListChecks } from 'lucide-react';
 import EpisodeCard from '@/components/EpisodeCard';
 import Workstation from '@/components/Workstation';
 import WeeklyChecklist from '@/components/WeeklyChecklist';
-import TuesdayRoutine from '@/components/TuesdayRoutine';
+
 import { DEFAULT_CHECKLIST } from '@/lib/constants';
 
 const DAYS = [
-    { id: 'mon', label: 'MON' },
-    { id: 'tue', label: 'TUE' },
-    { id: 'wed', label: 'WED' },
-    { id: 'thu', label: 'THU' },
-    { id: 'fri', label: 'FRI' },
-    { id: 'sat', label: 'SAT' },
-    { id: 'sun', label: 'SUN' },
+    { id: 'mon', label: 'MON', link: 'https://comic.naver.com/webtoon?tab=mon' },
+    { id: 'tue', label: 'TUE', link: 'https://comic.naver.com/webtoon?tab=tue' },
+    { id: 'wed', label: 'WED', link: 'https://comic.naver.com/webtoon?tab=wed' },
+    { id: 'thu', label: 'THU', link: 'https://comic.naver.com/webtoon?tab=thu' },
+    { id: 'fri', label: 'FRI', link: 'https://comic.naver.com/webtoon?tab=fri' },
+    { id: 'sat', label: 'SAT', link: 'https://comic.naver.com/webtoon?tab=sat' },
+    { id: 'sun', label: 'SUN', link: 'https://comic.naver.com/webtoon?tab=sun' },
 ];
 
 export default function ProjectDetail() {
@@ -30,7 +30,6 @@ export default function ProjectDetail() {
     });
     const [polishing, setPolishing] = useState(null);
     const [showChecklist, setShowChecklist] = useState(false);
-    const [showTuesdayRoutine, setShowTuesdayRoutine] = useState(false);
 
     const [weekData, setWeekData] = useState({
         mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: []
@@ -326,13 +325,7 @@ export default function ProjectDetail() {
                     <ListChecks size={16} />
                     {showChecklist ? 'Hide Checklist' : 'Show Checklist'}
                 </button>
-                <button
-                    onClick={() => setShowTuesdayRoutine(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-orange-600/20 hover:bg-orange-600/30 text-orange-500 border border-orange-500/50 rounded-lg text-sm font-bold transition-colors ml-2"
-                >
-                    <span className="mr-1">🔥</span>
-                    Start Tuesday Routine
-                </button>
+
             </div>
 
             {/* Checklist Panel */}
@@ -382,15 +375,7 @@ export default function ProjectDetail() {
                 initialData={activeEpisodeId ? weekData[activeDayId].find(e => e.id === activeEpisodeId) : null}
                 onSave={handleSaveWork}
             />
-            {/* Tuesday Routine Modal */}
-            {showTuesdayRoutine && (
-                <TuesdayRoutine
-                    projectId={projectId}
-                    checklistData={checklistData}
-                    onUpdate={handleChecklistUpdate}
-                    onClose={() => setShowTuesdayRoutine(false)}
-                />
-            )}
+
         </div>
     );
 }

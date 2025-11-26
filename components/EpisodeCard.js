@@ -1,4 +1,4 @@
-import { Edit2, Plus, Star, CheckSquare, Square, ListChecks, Film, FileText, Sparkles, Save } from 'lucide-react';
+import { Edit2, Plus, Star, CheckSquare, Square, ListChecks, Film, FileText, Sparkles, Save, ExternalLink } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useState } from 'react';
 
@@ -42,7 +42,20 @@ export default function EpisodeCard({
         <div className="bg-[#1a1b26] border border-white/5 rounded-xl p-3 flex flex-col gap-3 h-full">
             {/* Header */}
             <div className="flex justify-between items-center">
-                <span className="font-bold text-gray-400 text-sm">{day.label}</span>
+                <div className="flex items-center gap-2">
+                    <span className="font-bold text-gray-400 text-sm">{day.label}</span>
+                    {day.link && (
+                        <a 
+                            href={day.link} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-gray-600 hover:text-green-500 transition-colors"
+                            title="Open Naver Webtoon"
+                        >
+                            <ExternalLink size={12} />
+                        </a>
+                    )}
+                </div>
                 <div className="flex bg-black/40 rounded-lg p-0.5">
                     <button
                         onClick={() => setActiveTab('episodes')}
