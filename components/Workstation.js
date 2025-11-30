@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Search, Sparkles, Play, Mic, Image as ImageIcon, Copy, Scissors, Save, Plus } from 'lucide-react';
+import { X, Search, Sparkles, Play, Mic, Image as ImageIcon, Copy, Scissors, Save, Plus, Download } from 'lucide-react';
 
 export default function Workstation({ isOpen, onClose, day, initialData, onSave }) {
     const [url, setUrl] = useState(initialData?.url || '');
@@ -141,23 +141,12 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
             ...prev,
             {
                 id: crypto.randomUUID(),
-                time: '',
-                dialogue: '',
-                images: [],
-                direction: ''
+                images: []
             }
         ]);
     };
 
-    const updateScene = (id, field, value) => {
-        setStoryboard(prev => prev.map(scene =>
-            scene.id === id ? { ...scene, [field]: value } : scene
-        ));
-    };
 
-    const deleteScene = (id) => {
-        setStoryboard(prev => prev.filter(scene => scene.id !== id));
-    };
 
     const addSceneImage = (sceneId, imgUrl) => {
         setStoryboard(prev => prev.map(scene => {
@@ -181,89 +170,55 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
         }));
     };
 
-    const formatTime = (input) => {
-        // Handle "5" -> "00:05"
-        // Handle "5-9" or "5~9" -> "00:05 ~ 00:09"
-        if (!input) return '';
-
-        const formatSingle = (val) => {
-            val = val.trim().replace(/[^0-9]/g, '');
-            if (!val) return '';
-            const num = parseInt(val, 10);
-            const mins = Math.floor(num / 60).toString().padStart(2, '0');
-            const secs = (num % 60).toString().padStart(2, '0');
-            return `${mins}:${secs}`;
-        };
-
-        if (input.includes('~') || input.includes('-')) {
-            const parts = input.split(/[~-]/);
-            return `${formatSingle(parts[0])} ~ ${formatSingle(parts[1])}`;
-        } else {
-            return formatSingle(input);
-        }
-    };
-
-    const parseSceneText = (text) => {
-        // Parse format:
-        // 05~09초 (4초): "남주가 영화 보자고 해놓고..."
-        // 화면: ...
-        // 연출: ...
-        // 효과: ...
-
-        const lines = text.split('\n');
-        const scene = {
-            id: crypto.randomUUID(),
-            time: '',
-            dialogue: '',
-            images: [],
-            direction: ''
-        };
-
-        lines.forEach(line => {
-            line = line.trim();
-            if (!line) return;
-
-            if (line.match(/^[0-9]/)) {
-                // Time & Dialogue line
-                const timeMatch = line.match(/^([0-9~-]+)초?/);
-                if (timeMatch) {
-                    scene.time = formatTime(timeMatch[1]);
-                }
-
-                const dialogueMatch = line.match(/"([^"]+)"/);
-                if (dialogueMatch) {
-                    scene.dialogue = dialogueMatch[1];
-                }
-            } else if (line.startsWith('화면:')) {
-                // Image hint (can't auto-select image easily without ID, but we can store it or ignore)
-                // For now, maybe put it in direction if it's text description?
-            } else if (line.startsWith('연출:')) {
-                scene.direction = line.replace('연출:', '').trim();
-            }
+    const handleDownloadStoryboardImages = async () => {
+        let totalImages = 0;
+        storyboard.forEach(scene => {
+            if (scene.images) totalImages += scene.images.length;
         });
 
-        return scene;
+        if (totalImages === 0) return alert('No images in storyboard to download');
+
+        if (!confirm(`Download ${totalImages} images from storyboard?`)) return;
+
+        let downloadedCount = 0;
+
+        for (let sIndex = 0; sIndex < storyboard.length; sIndex++) {
+            const scene = storyboard[sIndex];
+            if (!scene.images || scene.images.length === 0) continue;
+
+            for (let iIndex = 0; iIndex < scene.images.length; iIndex++) {
+                const imgUrl = scene.images[iIndex];
+                try {
+                    const response = await fetch(`/api/proxy-image?url=${encodeURIComponent(imgUrl)}`);
+                    if (!response.ok) throw new Error('Download failed');
+
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    // Naming: scene_1_1.jpg, scene_1_2.jpg, etc.
+                    a.download = `scene_${sIndex + 1}_${iIndex + 1}.jpg`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                    downloadedCount++;
+
+                    // Small delay to prevent browser throttling
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                } catch (e) {
+                    console.error(`Failed to download scene ${sIndex + 1} image ${iIndex + 1}`, e);
+                }
+            }
+        }
+
+        if (downloadedCount < totalImages) {
+            alert(`Downloaded ${downloadedCount} of ${totalImages} images. Check console for errors.`);
+        }
     };
 
-    const handleSmartPaste = async () => {
-        try {
-            const text = await navigator.clipboard.readText();
-            if (!text) return;
-
-            // Heuristic: If text contains multiple blocks, split them?
-            // For now, assume one scene per paste or split by double newlines
-            const blocks = text.split(/\n\s*\n/);
-            const newScenes = blocks.map(block => parseSceneText(block)).filter(s => s.time || s.dialogue);
-
-            if (newScenes.length > 0) {
-                setStoryboard(prev => [...prev, ...newScenes]);
-            } else {
-                alert('Could not parse scene data from clipboard.');
-            }
-        } catch (e) {
-            console.error('Paste failed', e);
-            alert('Failed to read clipboard. Please allow permissions.');
-        }
+    const deleteScene = (id) => {
+        setStoryboard(prev => prev.filter(scene => scene.id !== id));
     };
 
     if (!isOpen) return null;
@@ -529,12 +484,12 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
                                     <h3 className="font-bold text-gray-400 text-sm uppercase tracking-wider">Storyboard</h3>
                                     <div className="flex gap-2">
                                         <button
-                                            onClick={handleSmartPaste}
-                                            className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors"
-                                            title="Paste formatted text"
+                                            onClick={handleDownloadStoryboardImages}
+                                            className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"
+                                            title="Download all scene images"
                                         >
-                                            <Copy size={14} />
-                                            Smart Paste
+                                            <Download size={16} />
+                                            Download Images
                                         </button>
                                         <button
                                             onClick={addScene}
@@ -547,31 +502,40 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
                                 </div>
 
                                 {/* Editing Guide Area */}
-                                <div className="bg-[#1a1b26] border border-white/10 rounded-xl p-4 flex flex-col gap-2">
-                                    <div className="flex justify-between items-center cursor-pointer" onClick={() => setShowGuide(!showGuide)}>
-                                        <label className="text-xs font-bold text-gray-400 uppercase flex items-center gap-2">
+                                <div className="bg-[#1a1b26] border border-white/10 rounded-xl p-4 flex flex-col gap-2 shrink-0">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-sm font-bold text-gray-400 uppercase flex items-center gap-2">
                                             <span className="bg-blue-600 w-2 h-2 rounded-full"></span>
                                             Editing Guide / Memo
                                         </label>
-                                        <span className="text-xs text-gray-500">{showGuide ? 'Hide' : 'Show'}</span>
                                     </div>
-                                    {showGuide && (
-                                        <textarea
-                                            value={guideText}
-                                            onChange={(e) => setGuideText(e.target.value)}
-                                            placeholder="Paste your editing guide or notes here..."
-                                            className="w-full h-48 bg-black/30 border border-white/10 rounded-lg p-3 text-sm text-gray-300 font-mono leading-relaxed resize-y focus:border-indigo-500 outline-none"
-                                        />
-                                    )}
+                                    <textarea
+                                        value={guideText}
+                                        onChange={(e) => setGuideText(e.target.value)}
+                                        placeholder="Paste your editing guide or notes here..."
+                                        className="w-full h-64 bg-black/30 border border-white/10 rounded-lg p-4 text-sm text-gray-300 font-mono leading-relaxed resize-y focus:border-indigo-500 outline-none"
+                                    />
                                 </div>
 
-                                <div className="flex-1 overflow-y-auto space-y-4 pr-2">
-                                    {storyboard.map((scene, index) => (
-                                        <div key={scene.id} className="bg-[#1a1b26] border border-white/10 rounded-xl p-4 flex gap-4 group">
-                                            {/* Image Area (Multi-select) */}
-                                            <div className="w-48 flex flex-col gap-2 shrink-0">
+                                <div className="flex-1 overflow-y-auto p-2">
+                                    {/* Grid Layout for Simplified Scenes */}
+                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                        {storyboard.map((scene, index) => (
+                                            <div key={scene.id} className="bg-[#1a1b26] border border-white/10 rounded-xl p-3 flex flex-col gap-3 group relative hover:border-indigo-500/50 transition-colors">
+                                                {/* Header */}
+                                                <div className="flex justify-between items-center">
+                                                    <span className="bg-gray-700 text-white text-xs font-bold px-2 py-1 rounded">#{index + 1}</span>
+                                                    <button
+                                                        onClick={() => deleteScene(scene.id)}
+                                                        className="text-gray-500 hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-all"
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                </div>
+
+                                                {/* Image Area (Drop Zone) */}
                                                 <div
-                                                    className="flex-1 min-h-[112px] bg-black/40 rounded-lg border border-white/10 flex flex-col items-center justify-center relative overflow-hidden cursor-pointer hover:border-indigo-500 transition-colors"
+                                                    className="aspect-video bg-black/40 rounded-lg border border-white/10 flex flex-col items-center justify-center relative overflow-hidden cursor-pointer hover:border-indigo-500 transition-colors"
                                                     onClick={() => alert('Drag and drop images from the left panel here!')}
                                                     onDragOver={(e) => e.preventDefault()}
                                                     onDrop={(e) => {
@@ -581,10 +545,10 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
                                                     }}
                                                 >
                                                     {scene.images && scene.images.length > 0 ? (
-                                                        <div className="grid grid-cols-2 gap-1 w-full h-full p-1 overflow-y-auto">
+                                                        <div className="grid grid-cols-2 gap-0.5 w-full h-full bg-black">
                                                             {scene.images.map((img, i) => (
-                                                                <div key={i} className="relative group/img aspect-square">
-                                                                    <img src={img} alt={`Scene ${index} - ${i}`} className="w-full h-full object-cover rounded-sm" />
+                                                                <div key={i} className="relative group/img w-full h-full">
+                                                                    <img src={img} alt={`Scene ${index} - ${i}`} className="w-full h-full object-cover" />
                                                                     <button
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();
@@ -599,88 +563,30 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
                                                         </div>
                                                     ) : (
                                                         <div className="text-center p-2">
-                                                            <ImageIcon className="mx-auto text-gray-600 mb-1" size={24} />
-                                                            <span className="text-[10px] text-gray-500 block">Drop Images Here</span>
+                                                            <ImageIcon className="mx-auto text-gray-600 mb-1" size={20} />
+                                                            <span className="text-[10px] text-gray-500 block">Drop Images</span>
                                                         </div>
                                                     )}
-                                                    {/* Overlay count if many images */}
+
+                                                    {/* Count Badge */}
                                                     {scene.images && scene.images.length > 0 && (
-                                                        <div className="absolute bottom-0 right-0 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-tl-md">
+                                                        <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-sm">
                                                             {scene.images.length}
                                                         </div>
                                                     )}
                                                 </div>
-                                                <div className="text-[10px] text-gray-500 text-center">
-                                                    {scene.images?.length || 0} images selected
-                                                </div>
                                             </div>
+                                        ))}
 
-                                            {/* Content */}
-                                            <div className="flex-1 space-y-3">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="bg-gray-700 text-white text-xs font-bold px-2 py-1 rounded">#{index + 1}</span>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="00:00 ~ 00:05"
-                                                        value={scene.time}
-                                                        onChange={(e) => updateScene(scene.id, 'time', e.target.value)}
-                                                        onBlur={(e) => updateScene(scene.id, 'time', formatTime(e.target.value))}
-                                                        className="bg-black/30 border border-white/10 rounded px-2 py-1 text-xs text-white w-32 text-center focus:border-indigo-500 outline-none"
-                                                    />
-                                                    <div className="flex-1" />
-                                                    <button
-                                                        onClick={() => deleteScene(scene.id)}
-                                                        className="text-gray-500 hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-all"
-                                                    >
-                                                        <X size={16} />
-                                                    </button>
-                                                </div>
-
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div>
-                                                        <label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">대본</label>
-                                                        <textarea
-                                                            value={scene.dialogue}
-                                                            onChange={(e) => updateScene(scene.id, 'dialogue', e.target.value)}
-                                                            placeholder="대본을 입력하세요..."
-                                                            className="w-full h-24 bg-black/30 border border-white/10 rounded-lg p-2 text-sm text-white resize-none focus:border-indigo-500 outline-none"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">연출</label>
-                                                        <textarea
-                                                            value={scene.direction}
-                                                            onChange={(e) => updateScene(scene.id, 'direction', e.target.value)}
-                                                            placeholder="예: 줌인, 팬..."
-                                                            className="w-full h-24 bg-black/30 border border-white/10 rounded-lg p-2 text-sm text-white resize-none focus:border-indigo-500 outline-none"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-
-                                    {storyboard.length === 0 && (
-                                        <div className="h-64 flex flex-col items-center justify-center text-gray-500 border-2 border-dashed border-white/10 rounded-xl">
-                                            <p className="mb-4">No scenes yet</p>
-                                            <div className="flex gap-3">
-                                                <button
-                                                    onClick={handleSmartPaste}
-                                                    className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
-                                                >
-                                                    <Copy size={16} />
-                                                    Smart Paste
-                                                </button>
-                                                <button
-                                                    onClick={addScene}
-                                                    className="bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
-                                                >
-                                                    <Plus size={16} />
-                                                    Create Empty Scene
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
+                                        {/* Add Scene Button Card */}
+                                        <button
+                                            onClick={addScene}
+                                            className="aspect-video bg-white/5 hover:bg-white/10 border-2 border-dashed border-white/10 hover:border-white/20 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-500 hover:text-white transition-all"
+                                        >
+                                            <Plus size={24} />
+                                            <span className="text-xs font-bold">Add Scene</span>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </>
