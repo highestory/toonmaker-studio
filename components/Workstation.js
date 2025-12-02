@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Search, Sparkles, Play, Mic, Image as ImageIcon, Copy, Scissors, Save, Plus, Download } from 'lucide-react';
+import { X, Search, Sparkles, Play, Mic, Image as ImageIcon, Copy, Scissors, Save, Plus, Download, Volume2 } from 'lucide-react';
 
 export default function Workstation({ isOpen, onClose, day, initialData, onSave }) {
     const [url, setUrl] = useState(initialData?.url || '');
@@ -12,6 +12,12 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
     const [analyzing, setAnalyzing] = useState(false);
     const [generatingScript, setGeneratingScript] = useState(false);
     const [lightboxImage, setLightboxImage] = useState(null);
+
+    // TTS State
+    const [voices, setVoices] = useState([]);
+    const [selectedVoice, setSelectedVoice] = useState('');
+    const [generatingAudio, setGeneratingAudio] = useState(false);
+    const [audioUrl, setAudioUrl] = useState(null);
 
     // Storyboard State
     const [viewMode, setViewMode] = useState('script'); // 'script' | 'storyboard'
@@ -29,8 +35,23 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
             setSelectedImages(initialData?.selectedImages || []);
             setStoryboard(initialData?.storyboard || []);
             setGuideText(initialData?.guideText || '');
+            fetchVoices();
         }
     }, [initialData, isOpen]);
+
+    const fetchVoices = async () => {
+        try {
+            const res = await fetch('/api/supertone-voices');
+            const data = await res.json();
+            const voiceList = data.voices || [];
+            if (voiceList && Array.isArray(voiceList)) {
+                setVoices(voiceList);
+                if (voiceList.length > 0) setSelectedVoice(voiceList[0].voice_id);
+            }
+        } catch (e) {
+            console.error('Failed to fetch voices', e);
+        }
+    };
 
     const toggleSelection = (img) => {
         setSelectedImages(prev =>
@@ -91,6 +112,34 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
             alert(`Error: ${e.message}`);
         } finally {
             setGeneratingScript(false);
+        }
+    };
+
+    const handleGenerateAudio = async () => {
+        if (!prompt) return alert('No script to generate audio from');
+        if (!selectedVoice) return alert('Please select a voice');
+
+        setGeneratingAudio(true);
+        try {
+            const res = await fetch('/api/generate-audio', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    text: prompt,
+                    voiceId: selectedVoice
+                })
+            });
+
+            if (!res.ok) throw new Error('Audio generation failed');
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            setAudioUrl(url);
+        } catch (e) {
+            console.error(e);
+            alert('Failed to generate audio');
+        } finally {
+            setGeneratingAudio(false);
         }
     };
 
@@ -460,7 +509,7 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
                                         value={prompt}
                                         onChange={(e) => setPrompt(e.target.value)}
                                         className="flex-1 bg-black/30 rounded-lg p-3 text-xs text-gray-300 resize-none outline-none font-mono leading-relaxed"
-                                        placeholder="Generated 30s Shorts script will appear here..."
+                                        placeholder="Generated 15s Shorts script will appear here..."
                                     />
                                     <div className="flex items-center gap-2">
                                         <input type="checkbox" id="trans" className="rounded bg-white/10 border-white/20" defaultChecked />
@@ -473,6 +522,41 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
                                         <Copy size={14} />
                                         Copy Script
                                     </button>
+
+                                    <div className="h-px bg-white/10 my-1"></div>
+
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs font-bold text-green-400 flex items-center gap-1">
+                                            <Volume2 size={12} />
+                                            TTS Audio
+                                        </span>
+                                        <select
+                                            value={selectedVoice}
+                                            onChange={(e) => setSelectedVoice(e.target.value)}
+                                            className="bg-black/30 border border-white/10 rounded px-2 py-1 text-[10px] text-white outline-none max-w-[120px]"
+                                        >
+                                            {voices.map(v => (
+                                                <option key={v.voice_id} value={v.voice_id}>{v.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <button
+                                        onClick={handleGenerateAudio}
+                                        disabled={generatingAudio || !prompt}
+                                        className="w-full bg-green-600 hover:bg-green-500 text-white py-2 rounded-lg text-xs font-bold shadow-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                                    >
+                                        {generatingAudio ? 'Generating Audio...' : 'Generate Audio'}
+                                    </button>
+
+                                    {audioUrl && (
+                                        <div className="bg-black/40 rounded-lg p-2 border border-white/10">
+                                            <audio controls src={audioUrl} className="w-full h-8" />
+                                            <a href={audioUrl} download="shorts_audio.wav" className="block text-center text-[10px] text-gray-400 hover:text-white mt-1">
+                                                Download Audio
+                                            </a>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </>

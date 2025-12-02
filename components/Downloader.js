@@ -25,7 +25,8 @@ export default function Downloader() {
                 analysis: null,
                 analyzing: false,
                 savingToDrive: false,
-                driveLink: null
+                driveLink: null,
+                webtoonList: []
             }
         }), {})
     );
@@ -41,7 +42,38 @@ export default function Downloader() {
         const state = dayStates[dayId];
         if (!state.url) return;
 
-        updateDayState(dayId, { loading: true, status: '스캔 중...', images: [], meta: null, analysis: null, driveLink: null });
+        updateDayState(dayId, { loading: true, status: '처리 중...', images: [], meta: null, analysis: null, driveLink: null });
+
+        // Check if it's a list URL (e.g. ?tab=mon)
+        const isListUrl = state.url.includes('comic.naver.com/webtoon') && (state.url.includes('tab=') || !state.url.includes('detail'));
+
+        if (isListUrl) {
+            try {
+                // Extract day from URL or use dayId
+                let dayParam = dayId;
+                try {
+                    const urlObj = new URL(state.url);
+                    const tab = urlObj.searchParams.get('tab');
+                    if (tab) dayParam = tab;
+                } catch (e) {
+                    // Invalid URL, stick to dayId
+                }
+
+                const res = await fetch(`/api/webtoon-list?day=${dayParam}`);
+                const data = await res.json();
+
+                if (data.error) throw new Error(data.error);
+
+                updateDayState(dayId, {
+                    webtoonList: data.webtoons || [],
+                    status: `${data.webtoons?.length || 0}개 웹툰 발견`,
+                    loading: false
+                });
+            } catch (e) {
+                updateDayState(dayId, { status: '리스트 에러: ' + e.message, loading: false });
+            }
+            return;
+        }
 
         try {
             const res = await fetch('/api/webtoon?url=' + encodeURIComponent(state.url));
@@ -298,6 +330,24 @@ export default function Downloader() {
                                         )}
                                     </div>
                                     {state.analysis}
+                                </div>
+                            )}
+
+                            {state.webtoonList && state.webtoonList.length > 0 && (
+                                <div className="mt-2 grid grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                                    {state.webtoonList.map(wt => (
+                                        <div
+                                            key={wt.titleId}
+                                            className="cursor-pointer group relative aspect-[3/4] rounded overflow-hidden border border-white/10 hover:border-blue-400 transition-all"
+                                            onClick={() => updateDayState(day.id, { url: wt.link, webtoonList: [] })}
+                                            title={wt.title}
+                                        >
+                                            <img src={`/api/proxy-image?url=${encodeURIComponent(wt.thumbnail)}`} alt={wt.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex items-end p-1.5">
+                                                <span className="text-[10px] text-white font-bold truncate w-full leading-tight">{wt.title}</span>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
 
