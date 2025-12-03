@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Search, Sparkles, Play, Mic, Image as ImageIcon, Copy, Scissors, Save, Plus, Download, Volume2, Maximize2, Check } from 'lucide-react';
 
-export default function Workstation({ isOpen, onClose, day, initialData, onSave }) {
+export default function Workstation({ isOpen, onClose, day, initialData, onSave, isScriptOnly = false }) {
     const [url, setUrl] = useState(initialData?.url || '');
     const [images, setImages] = useState(initialData?.images || []);
     const [script, setScript] = useState(initialData?.analysis || '');
@@ -21,9 +21,14 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
 
     // Storyboard State
     const [viewMode, setViewMode] = useState('script'); // 'script' | 'storyboard'
+
+
     const [storyboard, setStoryboard] = useState(initialData?.storyboard || []);
     const [guideText, setGuideText] = useState(initialData?.guideText || '');
     const [showGuide, setShowGuide] = useState(true);
+    
+    // Special Script Generation State
+    const [generationContext, setGenerationContext] = useState('');
 
     useEffect(() => {
         if (isOpen) {
@@ -140,6 +145,32 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
             alert('Failed to generate audio');
         } finally {
             setGeneratingAudio(false);
+        }
+    };
+
+    const handleGenerateSpecialScript = async () => {
+        setGeneratingScript(true);
+        try {
+            const apiKey = localStorage.getItem('GEMINI_API_KEY');
+            const res = await fetch('/api/generate-shorts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-gemini-api-key': apiKey || ''
+                },
+                body: JSON.stringify({
+                    type: day?.id, // 'opening', 'special', 'closing'
+                    context: generationContext
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Server error');
+            if (data.script) setScript(data.script); // Set directly to script for special segments
+        } catch (e) {
+            console.error(e);
+            alert(`Error: ${e.message}`);
+        } finally {
+            setGeneratingScript(false);
         }
     };
 
@@ -285,20 +316,22 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
                     </h2>
 
                     {/* View Toggle */}
-                    <div className="flex bg-black/40 rounded-lg p-1">
-                        <button
-                            onClick={() => setViewMode('script')}
-                            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${viewMode === 'script' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}
-                        >
-                            Script Editor
-                        </button>
-                        <button
-                            onClick={() => setViewMode('storyboard')}
-                            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${viewMode === 'storyboard' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'}`}
-                        >
-                            Storyboard
-                        </button>
-                    </div>
+                    {!isScriptOnly && (
+                        <div className="flex bg-black/40 rounded-lg p-1">
+                            <button
+                                onClick={() => setViewMode('script')}
+                                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${viewMode === 'script' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}
+                            >
+                                Script Editor
+                            </button>
+                            <button
+                                onClick={() => setViewMode('storyboard')}
+                                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${viewMode === 'storyboard' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                            >
+                                Storyboard
+                            </button>
+                        </div>
+                    )}
 
                     <div className="flex items-center gap-3">
                         <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
@@ -308,7 +341,39 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
                 </div>
 
                 {/* 3-Column Layout */}
-                {viewMode !== 'selection' ? (
+
+                {isScriptOnly ? (
+                    <div className="flex-1 flex justify-center p-8 overflow-y-auto bg-[#0f1014]">
+                        <div className="w-full max-w-4xl flex flex-col gap-4">
+                            <div className="flex justify-between items-center">
+                                <h3 className="font-bold text-gray-400 text-sm uppercase tracking-wider">Script Editor ({day?.label})</h3>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="text" 
+                                        placeholder="AI Instructions (e.g. Energetic tone)" 
+                                        value={generationContext}
+                                        onChange={(e) => setGenerationContext(e.target.value)}
+                                        className="bg-black/30 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white w-64 focus:border-blue-500 outline-none"
+                                    />
+                                    <button
+                                        onClick={handleGenerateSpecialScript}
+                                        disabled={generatingScript}
+                                        className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-2"
+                                    >
+                                        <Sparkles size={14} />
+                                        {generatingScript ? 'Generating...' : 'Auto-Generate'}
+                                    </button>
+                                </div>
+                            </div>
+                            <textarea
+                                value={script}
+                                onChange={(e) => setScript(e.target.value)}
+                                placeholder="Write your script here..."
+                                className="flex-1 min-h-[600px] bg-black/30 border border-white/10 rounded-xl p-6 text-base text-gray-200 leading-relaxed resize-none focus:border-blue-500 outline-none font-mono shadow-xl"
+                            />
+                        </div>
+                    </div>
+                ) : viewMode !== 'selection' ? (
                 <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-white/10 min-h-0 overflow-y-auto lg:overflow-hidden">
 
                     {/* Column 1: Source & Vision (Script Mode) or Selected Images (Storyboard Mode) */}

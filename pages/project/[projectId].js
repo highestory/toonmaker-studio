@@ -467,6 +467,7 @@ export default function ProjectDetail() {
                         : weekData[activeDayId].find(e => e.id === activeEpisodeId)
                 ) : null}
                 onSave={handleSaveWork}
+                isScriptOnly={['opening', 'special', 'closing'].includes(activeDayId)}
             />
 
         </div>
