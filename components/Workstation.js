@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Search, Sparkles, Play, Mic, Image as ImageIcon, Copy, Scissors, Save, Plus, Download, Volume2 } from 'lucide-react';
+import { X, Search, Sparkles, Play, Mic, Image as ImageIcon, Copy, Scissors, Save, Plus, Download, Volume2, Maximize2, Check } from 'lucide-react';
 
 export default function Workstation({ isOpen, onClose, day, initialData, onSave }) {
     const [url, setUrl] = useState(initialData?.url || '');
@@ -308,13 +308,23 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
                 </div>
 
                 {/* 3-Column Layout */}
+                {viewMode !== 'selection' ? (
                 <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-white/10 min-h-0 overflow-y-auto lg:overflow-hidden">
 
                     {/* Column 1: Source & Vision (Script Mode) or Selected Images (Storyboard Mode) */}
                     <div className="flex flex-col p-4 gap-4 min-h-[500px] lg:min-h-0">
                         {viewMode === 'script' ? (
                             <>
-                                <h3 className="font-bold text-gray-400 text-sm uppercase tracking-wider">Source & Gemini Vision</h3>
+                                <div className="flex justify-between items-center">
+                                    <h3 className="font-bold text-gray-400 text-sm uppercase tracking-wider">Source & Gemini Vision</h3>
+                                    <button
+                                        onClick={() => setViewMode('selection')}
+                                        className="text-gray-400 hover:text-white p-1 hover:bg-white/10 rounded transition-colors"
+                                        title="Expand View"
+                                    >
+                                        <Maximize2 size={16} />
+                                    </button>
+                                </div>
 
                                 {meta.thumbnail && (
                                     <div className="flex gap-3 bg-black/20 p-2 rounded-lg border border-white/5 mb-2">
@@ -676,6 +686,63 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
                         </>
                     )}
                 </div>
+            ) : (
+                /* Selection Mode View */
+                <div className="flex-1 flex flex-col min-h-0 bg-[#0f1014] relative">
+                    {/* Selection Mode Header */}
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-black/80 backdrop-blur-md px-6 py-3 rounded-full border border-white/10 shadow-2xl flex items-center gap-4">
+                        <span className="text-white font-bold text-sm">Select Best Scenes</span>
+                        <div className="w-px h-4 bg-white/20"></div>
+                        <span className="text-blue-400 text-sm font-bold">{selectedImages.length} Selected</span>
+                        <button
+                            onClick={() => setViewMode('script')}
+                            className="ml-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-2"
+                        >
+                            <Check size={14} />
+                            Done
+                        </button>
+                    </div>
+
+                    {/* Large Image List */}
+                    <div className="flex-1 overflow-y-auto p-4 md:p-8">
+                        <div className="max-w-3xl mx-auto flex flex-col gap-1">
+                            {images.map((img, i) => (
+                                <div
+                                    key={i}
+                                    onClick={() => toggleSelection(img)}
+                                    className={`relative group cursor-pointer transition-all ${selectedImages.includes(img) ? 'ring-4 ring-blue-500 z-10' : 'hover:opacity-90'}`}
+                                >
+                                    <img src={img} alt={`Panel ${i}`} className="w-full h-auto block" loading="lazy" />
+                                    
+                                    {/* Selection Overlay */}
+                                    <div className={`absolute top-4 right-4 transition-all duration-200 ${selectedImages.includes(img) ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100'}`}>
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-lg ${selectedImages.includes(img) ? 'bg-blue-600 text-white' : 'bg-black/50 text-white border border-white/20'}`}>
+                                            {selectedImages.includes(img) ? <Check size={18} strokeWidth={3} /> : <Plus size={18} />}
+                                        </div>
+                                    </div>
+
+                                    {/* Number Badge */}
+                                    <div className="absolute top-4 left-4 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm opacity-50 group-hover:opacity-100 transition-opacity">
+                                        #{i + 1}
+                                    </div>
+                                </div>
+                            ))}
+                            {images.length === 0 && (
+                                <div className="h-96 flex flex-col items-center justify-center text-gray-500 gap-4">
+                                    <ImageIcon size={48} className="opacity-50" />
+                                    <p>No images loaded. Please scrape a URL first.</p>
+                                    <button
+                                        onClick={() => setViewMode('script')}
+                                        className="text-blue-400 hover:text-blue-300 underline"
+                                    >
+                                        Go back
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
                 {/* Footer */}
                 <div className="h-16 border-t border-white/10 bg-[#13141c] flex justify-end items-center px-6 gap-3">

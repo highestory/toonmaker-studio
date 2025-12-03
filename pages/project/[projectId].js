@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '@/lib/supabase';
-import { ArrowLeft, Plus, ListChecks } from 'lucide-react';
+import { ArrowLeft, Plus, ListChecks, Star } from 'lucide-react';
 import EpisodeCard from '@/components/EpisodeCard';
 import Workstation from '@/components/Workstation';
 import WeeklyChecklist from '@/components/WeeklyChecklist';
@@ -16,6 +16,12 @@ const DAYS = [
     { id: 'fri', label: 'FRI', link: 'https://comic.naver.com/webtoon?tab=fri' },
     { id: 'sat', label: 'SAT', link: 'https://comic.naver.com/webtoon?tab=sat' },
     { id: 'sun', label: 'SUN', link: 'https://comic.naver.com/webtoon?tab=sun' },
+];
+
+const SPECIAL_SEGMENTS = [
+    { id: 'opening', label: '오프닝', color: 'from-blue-600 to-cyan-600' },
+    { id: 'special', label: '필살기', color: 'from-purple-600 to-pink-600' },
+    { id: 'closing', label: '클로징', color: 'from-orange-600 to-red-600' }
 ];
 
 export default function ProjectDetail() {
@@ -33,6 +39,9 @@ export default function ProjectDetail() {
 
     const [weekData, setWeekData] = useState({
         mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: []
+    });
+    const [specialSegments, setSpecialSegments] = useState({
+        opening: [], special: [], closing: []
     });
     const [featuredEpisodes, setFeaturedEpisodes] = useState([]);
     const [aiSpecialId, setAiSpecialId] = useState(null);
@@ -77,6 +86,7 @@ export default function ProjectDetail() {
         }
 
         const newWeekData = { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
+        const newSpecialSegments = { opening: [], special: [], closing: [] };
         const featured = [];
 
         if (episodes) {
@@ -84,35 +94,39 @@ export default function ProjectDetail() {
                 // Use ep.title as the day ID (legacy schema)
                 const dayId = ep.title;
 
-                if (dayId && newWeekData[dayId]) {
-                    try {
-                        const content = JSON.parse(ep.script_content || '{}');
-                        const episodeData = {
-                            ...content,
-                            id: ep.id,
-                            is_featured: ep.is_featured,
-                            day: dayId,
-                            script_content: ep.script_content // Preserve raw script content
-                        };
-                        newWeekData[dayId].push(episodeData);
+                try {
+                    const content = JSON.parse(ep.script_content || '{}');
+                    const episodeData = {
+                        ...content,
+                        id: ep.id,
+                        is_featured: ep.is_featured,
+                        day: dayId,
+                        script_content: ep.script_content // Preserve raw script content
+                    };
 
-                        // Collect featured episodes
-                        if (ep.is_featured) {
-                            featured.push({
-                                id: ep.id,
-                                day: dayId,
-                                title: content.meta?.webtoonTitle || content.meta?.title || 'Untitled'
-                            });
-                        }
-                    } catch (e) {
-                        console.error(`Error parsing script content for episode ${ep.id}:`, e);
+                    if (['opening', 'special', 'closing'].includes(dayId)) {
+                        newSpecialSegments[dayId].push(episodeData);
+                    } else if (dayId && newWeekData[dayId]) {
+                        newWeekData[dayId].push(episodeData);
+                    } else {
+                        console.warn(`Episode ${ep.id} has invalid or missing day ID in title: ${dayId}`);
                     }
-                } else {
-                    console.warn(`Episode ${ep.id} has invalid or missing day ID in title: ${dayId}`);
+
+                    // Collect featured episodes
+                    if (ep.is_featured) {
+                        featured.push({
+                            id: ep.id,
+                            day: dayId,
+                            title: content.meta?.webtoonTitle || content.meta?.title || 'Untitled'
+                        });
+                    }
+                } catch (e) {
+                    console.error(`Error parsing script content for episode ${ep.id}:`, e);
                 }
             });
         }
         setWeekData(newWeekData);
+        setSpecialSegments(newSpecialSegments);
         setFeaturedEpisodes(featured);
     }
 
@@ -344,6 +358,80 @@ export default function ProjectDetail() {
                 </div>
             )}
 
+            {/* Special Segments Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
+                {SPECIAL_SEGMENTS.map(segment => {
+                    const hasContent = specialSegments[segment.id] && specialSegments[segment.id].length > 0;
+                    const data = hasContent ? specialSegments[segment.id][0] : null;
+
+                    return (
+                        <div key={segment.id} className="relative group">
+                            <div className={`absolute inset-0 bg-gradient-to-r ${segment.color} rounded-2xl blur opacity-20 group-hover:opacity-40 transition-opacity`}></div>
+                            <div className="relative bg-[#1a1b26] border border-white/10 rounded-2xl p-1 overflow-hidden h-full flex flex-col">
+                                {/* Header */}
+                                <div className={`bg-gradient-to-r ${segment.color} px-4 py-2 rounded-t-xl flex justify-between items-center`}>
+                                    <h3 className="font-bold text-white text-lg shadow-sm">{segment.label}</h3>
+                                    <Star className="text-white/80 fill-white/20" size={18} />
+                                </div>
+
+                                {/* Content Area */}
+                                <div className="p-4 flex-1 flex flex-col justify-center items-center min-h-[160px]">
+                                    {hasContent ? (
+                                        <div 
+                                            onClick={() => handleEdit(segment.id, data)}
+                                            className="w-full h-full flex gap-4 cursor-pointer"
+                                        >
+                                            {/* Thumbnail */}
+                                            <div className="w-1/3 aspect-square bg-black/30 rounded-lg overflow-hidden border border-white/10 shrink-0">
+                                                {data.images && data.images.length > 0 ? (
+                                                    <img src={data.images[0]} alt="Thumbnail" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-gray-600">
+                                                        <span className="text-xs">No Image</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            
+                                            {/* Info */}
+                                            <div className="flex-1 flex flex-col gap-2">
+                                                <h4 className="font-bold text-gray-200 line-clamp-1">{data.meta?.webtoonTitle || 'Untitled'}</h4>
+                                                <p className="text-xs text-gray-400 line-clamp-2">{data.analysis || 'No analysis'}</p>
+                                                <div className="mt-auto flex gap-2">
+                                                    <span className="text-[10px] bg-white/10 px-2 py-1 rounded text-gray-300">
+                                                        {data.images?.length || 0} Images
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => handleEdit(segment.id)}
+                                            className="flex flex-col items-center gap-3 text-gray-500 hover:text-white transition-colors group/btn"
+                                        >
+                                            <div className="w-12 h-12 rounded-full bg-white/5 group-hover/btn:bg-white/10 flex items-center justify-center transition-colors">
+                                                <Plus size={24} />
+                                            </div>
+                                            <span className="text-sm font-medium">Create {segment.label}</span>
+                                        </button>
+                                    )}
+                                </div>
+                                
+                                {hasContent && (
+                                    <div className="px-4 pb-4">
+                                        <button 
+                                            onClick={() => handleEdit(segment.id, data)}
+                                            className="w-full bg-white/5 hover:bg-white/10 text-gray-300 text-xs py-2 rounded-lg transition-colors"
+                                        >
+                                            Edit Segment
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
             {/* Kanban Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4 flex-1 min-h-0">
                 {DAYS.map((day) => (
@@ -369,12 +457,15 @@ export default function ProjectDetail() {
                 ))}
             </div>
 
-            {/* Workstation Modal */}
             <Workstation
                 isOpen={isWorkstationOpen}
                 onClose={() => setIsWorkstationOpen(false)}
-                day={DAYS.find(d => d.id === activeDayId)}
-                initialData={activeEpisodeId ? weekData[activeDayId].find(e => e.id === activeEpisodeId) : null}
+                day={DAYS.find(d => d.id === activeDayId) || SPECIAL_SEGMENTS.find(s => s.id === activeDayId)}
+                initialData={activeEpisodeId ? (
+                    ['opening', 'special', 'closing'].includes(activeDayId) 
+                        ? specialSegments[activeDayId].find(e => e.id === activeEpisodeId)
+                        : weekData[activeDayId].find(e => e.id === activeEpisodeId)
+                ) : null}
                 onSave={handleSaveWork}
             />
 
