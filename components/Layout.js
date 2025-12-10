@@ -13,7 +13,9 @@ import {
     Loader2,
     LogOut,
     Menu,
-    X
+    X,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
 
 export default function Layout({ children }) {
@@ -21,6 +23,7 @@ export default function Layout({ children }) {
     const [apiStatus, setApiStatus] = useState('Connected'); // Mock status
     const [progress, setProgress] = useState(0); // Mock progress
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(false);
 
     // If on landing page, render simplified layout
     if (router.pathname === '/') {
@@ -45,16 +48,17 @@ export default function Layout({ children }) {
 
             {/* Left Sidebar */}
             <aside className={`
-                fixed md:static inset-y-0 left-0 z-50 w-64 bg-[#1a1b26] border-r border-white/5 flex flex-col transition-transform duration-300 ease-in-out
-                ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+                fixed md:static inset-y-0 left-0 z-50 bg-[#1a1b26] border-r border-white/5 flex flex-col transition-all duration-300 ease-in-out
+                ${isMobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'}
+                ${isCollapsed ? 'md:w-20' : 'md:w-64'}
             `}>
                 {/* Logo */}
-                <div className="p-6 flex items-center justify-between">
+                <div className={`p-6 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center font-bold text-lg italic">
+                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center font-bold text-lg italic shrink-0">
                             TJ
                         </div>
-                        <h1 className="text-xl font-bold tracking-tight">ToonJigi Studio</h1>
+                        {!isCollapsed && <h1 className="text-xl font-bold tracking-tight whitespace-nowrap">ToonJigi Studio</h1>}
                     </div>
                     <button 
                         onClick={() => setIsMobileMenuOpen(false)}
@@ -63,6 +67,14 @@ export default function Layout({ children }) {
                         <X size={24} />
                     </button>
                 </div>
+
+                {/* Collapse Toggle (Desktop) */}
+                <button
+                    onClick={() => setIsCollapsed(!isCollapsed)}
+                    className="hidden md:flex absolute -right-3 top-9 bg-[#1a1b26] border border-white/10 rounded-full p-1 text-gray-400 hover:text-white transition-colors z-50"
+                >
+                    {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+                </button>
 
                 {/* Navigation */}
                 <nav className="flex-1 px-3 py-4 space-y-1">
@@ -76,10 +88,11 @@ export default function Layout({ children }) {
                                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive
                                     ? 'bg-blue-600/10 text-blue-400'
                                     : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                                    }`}
+                                    } ${isCollapsed ? 'justify-center' : ''}`}
+                                title={isCollapsed ? item.label : ''}
                             >
                                 <item.icon size={18} />
-                                {item.label}
+                                {!isCollapsed && item.label}
                             </Link>
                         );
                     })}
@@ -87,16 +100,17 @@ export default function Layout({ children }) {
 
                 {/* Bottom Actions */}
                 <div className="p-4 border-t border-white/5 space-y-2">
-                    <button className="flex items-center gap-3 px-3 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors w-full">
+                    <button className={`flex items-center gap-3 px-3 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors w-full ${isCollapsed ? 'justify-center' : ''}`} title={isCollapsed ? 'Help & Resources' : ''}>
                         <HelpCircle size={18} />
-                        Help & Resources
+                        {!isCollapsed && 'Help & Resources'}
                     </button>
                     <a
                         href="/api/auth/logout"
-                        className="flex items-center gap-3 px-3 py-2 text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-colors w-full rounded-lg"
+                        className={`flex items-center gap-3 px-3 py-2 text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-colors w-full rounded-lg ${isCollapsed ? 'justify-center' : ''}`}
+                        title={isCollapsed ? 'Log Out' : ''}
                     >
                         <LogOut size={18} />
-                        Log Out
+                        {!isCollapsed && 'Log Out'}
                     </a>
                 </div>
             </aside>
