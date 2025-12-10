@@ -13,9 +13,71 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
     const [generatingScript, setGeneratingScript] = useState(false);
     const [lightboxImage, setLightboxImage] = useState(null);
 
+    // Video Generation State
+    const [generatingVideo, setGeneratingVideo] = useState(null); // image URL being processed
+    const [videoResult, setVideoResult] = useState(null); // { videoUrl, realisticImageUrl }
+    const [videoError, setVideoError] = useState(null); // Error message
+    const [confirmingVideo, setConfirmingVideo] = useState(null); // image URL waiting for confirmation
+    const [videoPrompt, setVideoPrompt] = useState("cinematic, realistic, 8k, live action, photorealistic, drama series screenshot, highly detailed texture, dramatic lighting");
+
+    // Removed client-side replicateToken state as it's now env var
+
+    const initiateVideoGeneration = async (imgUrl) => {
+        setConfirmingVideo(imgUrl);
+        setVideoPrompt("Analysing image and writing prompt with Gemini..."); // Loading state
+
+        try {
+            const res = await fetch('/api/generate-prompt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    imageUrl: imgUrl
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setVideoPrompt(data.prompt);
+            } else {
+                // Fallback if prediction fails
+                setVideoPrompt("cinematic, realistic, 8k, live action, photorealistic, drama series screenshot, highly detailed texture, dramatic lighting");
+            }
+        } catch (e) {
+            console.error(e);
+            setVideoPrompt("cinematic, realistic, 8k, live action, photorealistic, drama series screenshot, highly detailed texture, dramatic lighting");
+        }
+    };
+
+    const handleConfirmGeneration = async () => {
+        const imgUrl = confirmingVideo;
+        setConfirmingVideo(null); // Close confirm modal
+        setGeneratingVideo(imgUrl); // Open loading modal
+        setVideoResult(null);
+        setVideoError(null);
+
+        try {
+            const res = await fetch('/api/generate-video', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    imageUrl: imgUrl,
+                    prompt: videoPrompt
+                })
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) throw new Error(data.error || 'Failed to generate video');
+
+            setVideoResult(data);
+        } catch (e) {
+            console.error(e);
+            setVideoError(e.message || 'An unknown error occurred during generation.');
+        }
+        // Do NOT nullify generatingVideo here, so the modal stays open to show result or error
+    };
+
     // TTS State
-    const [voices, setVoices] = useState([]);
-    const [selectedVoice, setSelectedVoice] = useState('');
     const [generatingAudio, setGeneratingAudio] = useState(false);
     const [audioUrl, setAudioUrl] = useState(null);
 
@@ -35,23 +97,12 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
             setSelectedImages(initialData?.selectedImages || []);
             setStoryboard(initialData?.storyboard || []);
             setGuideText(initialData?.guideText || '');
-            fetchVoices();
+            setGuideText(initialData?.guideText || '');
+            // Voices removed in favor of env var
         }
     }, [initialData, isOpen]);
 
-    const fetchVoices = async () => {
-        try {
-            const res = await fetch('/api/supertone-voices');
-            const data = await res.json();
-            const voiceList = data.voices || [];
-            if (voiceList && Array.isArray(voiceList)) {
-                setVoices(voiceList);
-                if (voiceList.length > 0) setSelectedVoice(voiceList[0].voice_id);
-            }
-        } catch (e) {
-            console.error('Failed to fetch voices', e);
-        }
-    };
+
 
     const toggleSelection = (img) => {
         setSelectedImages(prev =>
@@ -117,16 +168,14 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
 
     const handleGenerateAudio = async () => {
         if (!prompt) return alert('No script to generate audio from');
-        if (!selectedVoice) return alert('Please select a voice');
 
         setGeneratingAudio(true);
         try {
-            const res = await fetch('/api/generate-audio', {
+            const res = await fetch('/api/generate-speech', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    text: prompt,
-                    voiceId: selectedVoice
+                    text: prompt
                 })
             });
 
@@ -401,6 +450,21 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
                                                             #{i + 1}
                                                         </span>
                                                     </div>
+
+                                                    {/* Video Generation Trigger */}
+                                                    <div className="absolute bottom-2 left-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex justify-center z-20">
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                initiateVideoGeneration(img);
+                                                            }}
+                                                            className="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1"
+                                                        >
+                                                            <Play size={10} fill="currentColor" />
+                                                            One-Pick Realism
+                                                        </button>
+                                                    </div>
+
                                                     {isUsed && (
                                                         <div className="absolute inset-0 bg-green-500/10 pointer-events-none flex items-center justify-center">
                                                             <span className="bg-green-600 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg">
@@ -482,6 +546,20 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
                                                         <X size={14} />
                                                     </button>
                                                 </div>
+
+                                                {/* Video Generation Trigger */}
+                                                <div className="absolute bottom-2 left-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex justify-center z-20">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            initiateVideoGeneration(img);
+                                                        }}
+                                                        className="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1"
+                                                    >
+                                                        <Play size={10} fill="currentColor" />
+                                                        One-Pick Realism
+                                                    </button>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -528,17 +606,8 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
                                     <div className="flex justify-between items-center">
                                         <span className="text-xs font-bold text-green-400 flex items-center gap-1">
                                             <Volume2 size={12} />
-                                            TTS Audio
+                                            TTS Audio (Supertone)
                                         </span>
-                                        <select
-                                            value={selectedVoice}
-                                            onChange={(e) => setSelectedVoice(e.target.value)}
-                                            className="bg-black/30 border border-white/10 rounded px-2 py-1 text-[10px] text-white outline-none max-w-[120px]"
-                                        >
-                                            {voices.map(v => (
-                                                <option key={v.voice_id} value={v.voice_id}>{v.name}</option>
-                                            ))}
-                                        </select>
                                     </div>
 
                                     <button
@@ -711,6 +780,133 @@ export default function Workstation({ isOpen, onClose, day, initialData, onSave 
                             className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
                             onClick={(e) => e.stopPropagation()}
                         />
+                    </div>
+                )
+            }
+
+            {/* Confirmation Modal */}
+            {
+                confirmingVideo && (
+                    <div className="fixed inset-0 bg-black/90 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
+                        <div className="bg-[#1a1b26] rounded-xl border border-white/10 shadow-2xl p-6 max-w-md w-full flex flex-col gap-4">
+                            <h3 className="text-xl font-bold text-white">Real-ify Image?</h3>
+                            <div className="aspect-video bg-black rounded-lg overflow-hidden border border-white/10">
+                                <img src={confirmingVideo} alt="Preview" className="w-full h-full object-contain" />
+                            </div>
+                            <p className="text-gray-400 text-sm">
+                                This will convert the webtoon panel into a high-quality realistic style.
+                                <br />
+                                <strong>Time:</strong> ~1-2 seconds (Turbo).
+                            </p>
+
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-gray-400">Prompt (Describe the scene):</label>
+                                <textarea
+                                    value={videoPrompt}
+                                    onChange={(e) => setVideoPrompt(e.target.value)}
+                                    className="w-full bg-black/50 border border-white/10 rounded-lg p-2 text-xs text-gray-300 h-20 resize-none outline-none focus:border-indigo-500"
+                                    placeholder="Describe the desired realistic look..."
+                                />
+                            </div>
+
+                            <div className="flex gap-3 mt-2">
+                                <button
+                                    onClick={() => setConfirmingVideo(null)}
+                                    className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg text-sm font-bold transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleConfirmGeneration}
+                                    className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-bold shadow-lg transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <Sparkles size={16} />
+                                    Real-ify
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Video Generation Result Modal */}
+            {
+                (generatingVideo || videoResult || videoError) && (
+                    <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
+                        <div className="bg-[#1a1b26] rounded-xl border border-white/10 shadow-2xl p-6 max-w-4xl w-full flex flex-col gap-4">
+                            <div className="flex justify-between items-center border-b border-white/10 pb-4">
+                                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <Sparkles className="text-indigo-400" />
+                                    One-Pick Realism Studio
+                                </h3>
+                                <button
+                                    onClick={() => {
+                                        setVideoResult(null);
+                                        setVideoError(null);
+                                        setGeneratingVideo(null);
+                                    }}
+                                    className="p-1 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white"
+                                >
+                                    <X size={24} />
+                                </button>
+                            </div>
+
+                            {videoError && (
+                                <div className="flex flex-col items-center justify-center py-10 gap-4 text-center">
+                                    <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center text-red-500 mb-2">
+                                        <X size={32} />
+                                    </div>
+                                    <h4 className="text-xl font-bold text-white">Generation Failed</h4>
+                                    <p className="text-red-400 bg-red-500/10 px-4 py-2 rounded-lg text-sm font-mono break-all max-w-full">
+                                        {videoError}
+                                    </p>
+                                    <button
+                                        onClick={() => {
+                                            setVideoError(null);
+                                            setGeneratingVideo(null);
+                                        }}
+                                        className="mt-4 px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm font-bold transition-colors"
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+                            )}
+
+                            {generatingVideo && !videoResult && !videoError && (
+                                <div className="flex flex-col items-center justify-center py-20 gap-6">
+                                    <div className="relative w-24 h-24">
+                                        <div className="absolute inset-0 border-4 border-indigo-500/30 rounded-full animate-pulse"></div>
+                                        <div className="absolute inset-0 border-t-4 border-indigo-500 rounded-full animate-spin"></div>
+                                        <Sparkles className="absolute inset-0 m-auto text-indigo-400 animate-pulse" size={32} />
+                                    </div>
+                                    <div className="text-center space-y-2">
+                                        <h4 className="text-xl font-bold text-white">Real-ifying Scene...</h4>
+                                        <p className="text-gray-400 text-sm">Applying cinematic photorealistic styles (SDXL)</p>
+                                        <p className="text-gray-500 text-xs mt-4">Generating with z-image-turbo (Fast)...</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {videoResult && (
+                                <div className="space-y-4">
+                                    <div className="aspect-video bg-black rounded-lg overflow-hidden border border-indigo-500/50 shadow-[0_0_20px_rgba(99,102,241,0.3)]">
+                                        <img src={videoResult.realisticImageUrl} alt="Realistic" className="w-full h-full object-contain" />
+                                    </div>
+                                    <div className="flex justify-center">
+                                        <a
+                                            href={videoResult.realisticImageUrl}
+                                            download="realistic_scene.png"
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold shadow-lg flex items-center gap-2 transition-colors"
+                                        >
+                                            <Download size={18} />
+                                            Download Realistic Image
+                                        </a>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )
             }

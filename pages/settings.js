@@ -5,10 +5,13 @@ export default function Settings() {
     const [geminiKey, setGeminiKey] = useState('');
     const [systemPrompt, setSystemPrompt] = useState('');
 
+    const [message, setMessage] = useState('');
+
     useEffect(() => {
         // Load from localStorage on mount
         const savedKey = localStorage.getItem('GEMINI_API_KEY');
         const savedPrompt = localStorage.getItem('SYSTEM_PROMPT');
+
         if (savedKey) setGeminiKey(savedKey);
         if (savedPrompt) setSystemPrompt(savedPrompt);
         else setSystemPrompt("You are ToonJigi, a 1-million subscriber YouTuber specializing in engaging webtoon content. Your goal is to create dynamic and entertaining video scripts based on provided comic panels, focusing on pacing, humor, and audience engagement.");
@@ -17,7 +20,9 @@ export default function Settings() {
     const handleSave = () => {
         localStorage.setItem('GEMINI_API_KEY', geminiKey);
         localStorage.setItem('SYSTEM_PROMPT', systemPrompt);
-        alert('Settings Saved!');
+
+        setMessage('Settings Saved!');
+        setTimeout(() => setMessage(''), 3000);
     };
 
     return (
@@ -27,13 +32,16 @@ export default function Settings() {
                     <h1 className="text-2xl font-bold text-white">Application Settings</h1>
                     <p className="text-gray-400 text-sm mt-1">Manage API keys and AI personas</p>
                 </div>
-                <button
-                    onClick={handleSave}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold transition-colors shadow-lg"
-                >
-                    <Save size={16} />
-                    Save Changes
-                </button>
+                <div className="flex items-center gap-4">
+                    {message && <span className="text-green-400 text-sm font-bold animate-pulse">{message}</span>}
+                    <button
+                        onClick={handleSave}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold transition-colors shadow-lg"
+                    >
+                        <Save size={16} />
+                        Save Changes
+                    </button>
+                </div>
             </div>
 
             {/* API Configuration */}
@@ -59,6 +67,13 @@ export default function Settings() {
                         </div>
                         <p className="text-xs text-gray-500 mt-2">
                             Your API key is stored locally in your browser.
+                        </p>
+                    </div>
+
+                    <div className="pt-4 border-t border-white/10">
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Replicate API Configuration</label>
+                        <p className="text-xs text-green-400 font-mono bg-green-500/10 inline-block px-2 py-1 rounded">
+                            ✓ Managed by Server (.env.local)
                         </p>
                     </div>
                 </div>
